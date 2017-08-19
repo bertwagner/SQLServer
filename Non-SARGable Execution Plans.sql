@@ -1,3 +1,7 @@
+-- This script will check the execution plan cache for any queries that are non-SARGable.
+-- It does this by finding table and index scans that contain a scalar operators
+-- More info about this script: https://blog.bertwagner.com/how-to-search-and-destroy-non-sargable-queries-on-your-server-ff9f57c7268e
+
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
  
 DECLARE @dbname SYSNAME
