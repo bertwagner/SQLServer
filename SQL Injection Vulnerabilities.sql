@@ -9,6 +9,9 @@
 -- Doesn’t matter that the developers did a bad job with validation – your db is supposed to be secure.
 -- This will NOT find all instances of sql injection vulnerabilities (eg. adhoc queries, COALESCE(@ParmValue, or ISNULL(@ParmValue...)
 
+USE [<DatabaseName>];
+GO
+
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
 
 SELECT
