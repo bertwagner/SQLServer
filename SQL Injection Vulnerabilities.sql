@@ -1,30 +1,56 @@
--- This file tries to find stored procedures and functions that *may* be vulnerable to SQL injection attacks.
+-- https://github.com/bertwagner/SQLServer/blob/master/SQL%20Injection%20Vulnerabilities.sql
 
--- It works by searching your database for occurences of "+" signs followed by "@", indicating that SQL parameters
--- might be getting concatenated to a dynamic SQL string.  It also checks for the existence of 'EXEC' to see if any
--- strings are being executed.
+-- How to search your database for SQL Injection vulnerabilities
+-- It's very difficult to find with 100% accuracy vulnerabilities, but we can do our best
+-- Searches stored procedures, udfs, views for parameter plus + sign for concatenation as well as exec or usp_exec
+-- check for things that don't use quotename
 
--- Not every result returned will be susceptible to SQL injection, however they should all be examined to see if they are vulnerable.
-
--- More information can be found at my blog post: https://blog.bertwagner.com/what-every-sql-user-needs-to-know-about-sql-injection-db914fb39668
+-- Why is finding vulnerabilities important?  Because at the end of the day, if data is lost or leaked, you are the one to blame.  
+-- Doesn’t matter that the developers did a bad job with validation – your db is supposed to be secure.
+-- This will NOT find all instances of sql injection vulnerabilities (eg. adhoc queries, COALESCE(@ParmValue, or ISNULL(@ParmValue...)
 
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
 
 SELECT
-    ROUTINE_CATALOG,
-    ROUTINE_SCHEMA,
-    ROUTINE_NAME,
-    ROUTINE_TYPE,
-    ROUTINE_DEFINITION
+	o.type_desc AS ObjectType,
+	DB_NAME(o.parent_object_id) AS DatabaseName,
+	s.name as SchemaName,
+	o.name as ObjectName,
+	r.Definition
 FROM
-    INFORMATION_SCHEMA.ROUTINES
+	sys.sql_modules r
+	INNER JOIN sys.objects o
+		ON r.object_id = o.object_id
+	INNER JOIN sys.schemas s
+		ON o.schema_id = s.schema_id
 WHERE
-	REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(ROUTINE_DEFINITION,CHAR(0),''),CHAR(9),''),CHAR(10),''),CHAR(11),''),CHAR(12),''),CHAR(13),''),CHAR(14),''),CHAR(160),''),' ','')
-		LIKE '%+@%'
+	-- Remove white space from query texts
+	REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+		r.Definition,CHAR(0),''),CHAR(9),''),CHAR(10),''),CHAR(11),''),
+		CHAR(12),''),CHAR(13),''),CHAR(14),''),CHAR(160),''),' ','')
+	LIKE '%+@%'
 	AND	
 	( -- Only if executes a dynamic string
-		ROUTINE_DEFINITION LIKE '%EXEC(%'
-		OR ROUTINE_DEFINITION LIKE '%EXECUTE%'
-		OR ROUTINE_DEFINITION LIKE '%sp_executesql%'
+		r.Definition LIKE '%EXEC(%'
+		OR r.Definition LIKE '%EXECUTE%'
+		OR r.Definition LIKE '%sp_executesql%'
 	)
- 
+
+
+-- Search for parameters that look like they could hvae injection values in them
+
+WITH XMLNAMESPACES (DEFAULT 'http://schemas.microsoft.com/sqlserver/2004/07/showplan')
+
+SELECT
+   stmt.value('(@StatementText)[1]', 'varchar(max)') AS [Query],
+   query_plan AS [QueryPlan],
+   stmt.value('(.//ColumnReference/@ParameterCompiledValue)[1]', 'varchar(1000)') AS [ParameterValue] 
+FROM 
+	sys.dm_exec_cached_plans AS cp
+	CROSS APPLY sys.dm_exec_query_plan(cp.plan_handle) AS qp
+	CROSS APPLY query_plan.nodes('/ShowPlanXML/BatchSequence/Batch/Statements/StmtSimple') AS batch(stmt)
+WHERE
+	-- if single quotes exist in a parameter
+	stmt.value('(.//ColumnReference/@ParameterCompiledValue)[1]', 'varchar(1000)') like '%''%'
+	OR stmt.value('(.//ColumnReference/@ParameterCompiledValue)[1]', 'varchar(1000)') like '%sys.objects%'
+	OR stmt.value('(.//ColumnReference/@ParameterCompiledValue)[1]', 'varchar(1000)') like '%[0-9]=[0-9]%'
