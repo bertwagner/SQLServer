@@ -37,7 +37,7 @@ WHERE
 		r.Definition LIKE '%EXEC(%'
 		OR r.Definition LIKE '%EXECUTE%'
 		OR r.Definition LIKE '%sp_executesql%'
-	)
+	);
 
 
 -- Search for parameters that look like they could hvae injection values in them
