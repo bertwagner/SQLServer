@@ -5,6 +5,11 @@ to convert serialized data into tables.
 
 It is not perfect, but should provide a decent starting point when starting
 to work with new JSON schemas.
+
+Make Id, unless Id column already exists
+Arrays will be given column names same as table name
+If type=3, then bit
+NOT NULL vs NULLable
 */
 
 DECLARE 
@@ -12,15 +17,15 @@ DECLARE
 		{
 			"Id" : 1,
 			"IsActive":true,
+			"ActivityArray":[true,false,true],
 			"People" : ["Jim","Joan","John","Jeff"],
-			"Places" : [{"State":"Connecticut", "Capitol":"Hartford"},{"State":"Ohio","Capitol":"Columbus","MajorCities":["Cleveland","Cincinnati"]}],
+			"Places" : [{"State":"Connecticut", "Capitol":"Hartford", "IsExpensive":true},{"State":"Ohio","Capitol":"Columbus","MajorCities":["Cleveland","Cincinnati"]}],
 			"Created_At":"2018-04-18T21:25:48Z"
 		}',
 	@RootTableName nvarchar(4000) = N'AppInstance',
-	@DefaultStringType nvarchar(100) = 'nvarchar',
 	@DefaultStringPadding smallint = 20;
 
-
+DROP TABLE IF EXISTS ##parsedJson;
 WITH jsonRoot AS (
 	SELECT 0 as parentLevel, 0 AS level, [type],
 	@RootTableName COLLATE Latin1_General_BIN2 AS TableName,
@@ -38,6 +43,26 @@ WITH jsonRoot AS (
 
 	
 )
-SELECT * FROM jsonRoot
-WHERE [type] in (1,2,3) 
-order by parentLevel, level
+SELECT 
+	*
+INTO ##parsedJson
+FROM jsonRoot
+WHERE 
+	[type] in (1,2,3);
+
+SELECT * FROM ##parsedJson;
+
+DECLARE
+	@TableColumnDefinition nvarchar(max)
+
+SELECT 
+	TableName,
+	STRING_AGG(ColumnName + ' nvarchar(100)',',')
+FROM
+	##parsedJson
+GROUP BY
+	TableName
+
+--SELECT @TableColumnDefinition;
+
+
