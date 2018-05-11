@@ -44,8 +44,8 @@ WITH jsonRoot AS (
 	FROM OPENJSON(@JsonData, '$')
 	UNION ALL
 	SELECT jsonRoot.level as parentLevel, CONVERT(nvarchar(4000),jsonRoot.TableName) COLLATE Latin1_General_BIN2, jsonRoot.level+1, d.[type],
-	CASE WHEN jsonRoot.type IN (4) THEN CONVERT(nvarchar(4000),jsonRoot.ColumnName) ELSE CONVERT(nvarchar(4000),jsonRoot.ColumnName) COLLATE Latin1_General_BIN2 END,
-	CASE WHEN jsonRoot.type IN (4) THEN CONVERT(nvarchar(4000),jsonRoot.ColumnName) ELSE d.[key] END,
+	CASE WHEN jsonRoot.type IN (4) THEN CONVERT(nvarchar(4000),jsonRoot.ColumnName) ELSE jsonRoot.TableName END COLLATE Latin1_General_BIN2,
+	CASE WHEN jsonRoot.type IN (4) THEN jsonRoot.ColumnName + 'Id' ELSE d.[key] END,
 	ROW_NUMBER() OVER (ORDER BY (SELECT 1)) AS ColumnSequence,
 	d.[value]
 	FROM jsonRoot
@@ -77,7 +77,7 @@ FROM jsonRoot
 WHERE 
 	[type] in (1,2,3);
 
---SELECT * FROM ##parsedJson;
+SELECT * FROM ##parsedJson;
 
 DECLARE
 	@CreateStatements nvarchar(max)
@@ -85,7 +85,7 @@ DECLARE
 SELECT
 	@CreateStatements = COALESCE(@CreateStatements + CHAR(13) + CHAR(13), '') + 
 	'CREATE TABLE ' + @Schema + '.' + TableName + CHAR(13) + '(' + CHAR(13) +
-		c2 +' int,' + CHAR(13) +
+		ISNULL(c2 +' int,' + CHAR(13),'')+
 		STRING_AGG( ColumnName + ' ' + DataType + ISNULL('('+CAST(DataTypePrecision AS nvarchar(20))+')','') +  ' NULL', ','+CHAR(13)) WITHIN GROUP (ORDER BY ColumnSequence) 
 	+ CHAR(13)+')'
 FROM
