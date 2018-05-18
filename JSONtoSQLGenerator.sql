@@ -17,6 +17,7 @@ Quick (somewhat) and dirty (very)
 
 CREATE STRING_AGG polyfill function for older versions of SQL
 */
+SET NOCOUNT ON;
 
 DECLARE 
 	@JsonData nvarchar(max) = '
@@ -93,7 +94,7 @@ SELECT
 	@CreateStatements = COALESCE(@CreateStatements + CHAR(13) + CHAR(13), '') + 
 	'CREATE TABLE ' + @Schema + '.' + TableName + CHAR(13) + '(' + CHAR(13) +
 		--ISNULL(c2 +' int,' + CHAR(13),'')+
-		STRING_AGG( ColumnName + ' ' + DataType + ISNULL('('+CAST(DataTypePrecision AS nvarchar(20))+')','') +  ' NULL', ','+CHAR(13)) WITHIN GROUP (ORDER BY ColumnSequence) 
+		STRING_AGG( ColumnName + ' ' + DataType + ISNULL('('+CAST(DataTypePrecision AS nvarchar(20))+')','') +  CASE WHEN DataType like '%PRIMARY KEY%' THEN '' ELSE ' NULL' END, ','+CHAR(13)) WITHIN GROUP (ORDER BY ColumnSequence) 
 	+ CHAR(13)+')'
 FROM
 	(SELECT DISTINCT 
